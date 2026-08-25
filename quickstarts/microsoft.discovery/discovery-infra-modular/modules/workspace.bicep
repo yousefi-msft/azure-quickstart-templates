@@ -110,6 +110,9 @@ resource project 'Microsoft.Discovery/workspaces/projects@2026-06-01' = {
   parent: workspace
   name: projectName
   location: location
+  // The project references discoveryStorageContainer.id below (storageContainerIds),
+  // which already creates an implicit dependency on the storage container, so only the
+  // chat model deployment needs an explicit dependsOn to guarantee ordering.
   dependsOn: [
     chatModelDeployment
   ]

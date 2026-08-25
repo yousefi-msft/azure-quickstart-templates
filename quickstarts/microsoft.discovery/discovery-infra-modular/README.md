@@ -113,7 +113,7 @@ It does, however, need to be **configured before its first use** — it is not d
 The template **consumes** your subnets; it does not create or reconfigure them. So the subnets must already exist and already satisfy Discovery's requirements:
 
 - `workspaceSubnet`, `agentSubnet`, and `searchSubnet` must be delegated to `Microsoft.App/environments`.
-- `nodePool`, `aks`, `workspace`, and `agent` subnets should carry the `Microsoft.Storage` service endpoint (the search subnet does not need it).
+- `nodePool`, `aks`, `workspace`, `agent`, and `search` subnets should carry the `Microsoft.Storage` service endpoint.
 
 When you bring your own network, the template does **not** add storage account virtual-network rules for your subnets (it can't guarantee they carry the storage service endpoint, and the storage account already uses `defaultAction: Allow`). The storage VNet rules are only applied to subnets this sample creates itself.
 
@@ -212,6 +212,12 @@ SUBNETS=$(az network vnet subnet list -g $VNET_RG --vnet-name $VNET -o json | jq
   searchSubnetId:          (.[] | select(.name=="discovery-search")   | .id)
 }')
 
+# Fail early if any subnet name was not found. jq omits the whole object when a
+# `select` matches nothing, so this checks that all six fields are present and
+# non-empty locally, before the deployment is submitted.
+echo "$SUBNETS" | jq -e 'objects and (keys|length==6) and all(.[]; . != null and . != "")' >/dev/null \
+  || { echo "ERROR: one or more subnets were not found; check the subnet names above." >&2; exit 1; }
+
 az deployment group create -g $RG -n discovery-byo-net \
   --template-file main.bicep \
   --parameters deployNetwork=false \
@@ -219,7 +225,7 @@ az deployment group create -g $RG -n discovery-byo-net \
   --parameters storageAccountName=$STORAGE
 ```
 
-The template validates that all six subnet IDs are non-empty, so a typo in a subnet name fails fast at validation time rather than mid-deployment.
+The template validates that all six subnet IDs are non-empty (the `discoverySubnetIds` type applies `@minLength(1)` to every field), so a typo in a subnet name fails fast at validation time rather than mid-deployment. The `jq -e` guard above catches the same mistake locally before the deployment is even submitted.
 
 ### Example 4 — Bring your own managed identity (query principalId)
 

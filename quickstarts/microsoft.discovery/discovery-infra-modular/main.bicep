@@ -177,6 +177,9 @@ module network 'modules/network.bicep' = if (deployNetwork) {
 }
 
 // Resolve subnet IDs from either the new network or the bring-your-own input.
+// When deployNetwork = false, existingSubnetIds must be supplied: the discoverySubnetIds
+// type (modules/types.bicep) applies @minLength(1) to all six fields, so any missing or
+// empty subnet ID fails fast at validation time rather than mid-deployment.
 var subnets discoverySubnetIds = deployNetwork ? network!.outputs.subnetIds : existingSubnetIds!
 
 module identity 'modules/identity.bicep' = if (deployManagedIdentity) {
@@ -216,14 +219,15 @@ module storage 'modules/storage.bicep' = if (deployStorage) {
     // service endpoint. We only add rules for the subnets we create (deployNetwork),
     // which network.bicep configures with that endpoint. For bring-your-own networks
     // we skip the rules, since we can't guarantee the endpoint is present and the
-    // account uses defaultAction 'Allow'. The search subnet is intentionally excluded
-    // (Discovery does not require the storage endpoint there).
+    // account uses defaultAction 'Allow'. The search subnet is included so its search
+    // components retain storage access, matching the single-file Discovery template.
     allowedSubnetIds: deployNetwork
       ? [
           subnets.nodePoolSubnetId
           subnets.aksSubnetId
           subnets.workspaceSubnetId
           subnets.agentSubnetId
+          subnets.searchSubnetId
         ]
       : []
   }

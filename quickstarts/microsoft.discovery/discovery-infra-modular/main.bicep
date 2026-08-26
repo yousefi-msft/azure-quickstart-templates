@@ -1,6 +1,6 @@
 // Modular Microsoft Discovery deployment.
 //
-// This orchestrator wires together six independent modules. Each "deploy*" switch
+// This orchestrator wires together seven independent modules. Each "deploy*" switch
 // lets you either provision a component here, or bring your own existing resource
 // and pass its identifiers in. This makes it easy to drop the Discovery-specific
 // pieces (Supercomputer, Workspace) into an existing landing zone that already owns
@@ -277,7 +277,19 @@ module workspace 'modules/workspace.bicep' = {
     chatModelName: chatModelName
     storageContainerName: storageContainerName
     storageAccountResourceId: storageAccountResourceId
+  }
+}
+
+module project 'modules/project.bicep' = {
+  params: {
+    location: location
+    workspaceName: workspaceName
     projectName: projectName
+    // Referencing the workspace module's storage container output orders this module
+    // after the workspace, its chat model deployment, and the storage container.
+    storageContainerIds: [
+      workspace.outputs.storageContainerId
+    ]
   }
 }
 
@@ -301,7 +313,7 @@ output chatModelDeploymentId string = workspace.outputs.chatModelDeploymentId
 output storageContainerId string = workspace.outputs.storageContainerId
 
 @description('Resource ID of the project.')
-output projectId string = workspace.outputs.projectId
+output projectId string = project.outputs.projectId
 
 @description('Resource ID of the managed identity in use.')
 output managedIdentityId string = managedIdentityResourceId

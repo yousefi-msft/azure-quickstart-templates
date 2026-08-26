@@ -48,7 +48,8 @@ Same as the [single-file sample](../discovery-infra-deployment/README.md#prerequ
 | [modules/storage.bicep](modules/storage.bicep) | Storage account (CORS) and blob container. |
 | [modules/rbac.bicep](modules/rbac.bicep) | Role assignments for the identity and an optional user group. |
 | [modules/supercomputer.bicep](modules/supercomputer.bicep) | Discovery Supercomputer with a basic node node pool. |
-| [modules/workspace.bicep](modules/workspace.bicep) | Discovery Workspace, chat model deployment, storage container, and project. |
+| [modules/workspace.bicep](modules/workspace.bicep) | Discovery Workspace, chat model deployment, and storage container. |
+| [modules/project.bicep](modules/project.bicep) | Discovery project bound to the Workspace and its storage container. |
 
 ## Architecture
 
@@ -62,7 +63,8 @@ flowchart TD
   end
   subgraph Discovery["Discovery (always deployed)"]
     sc[supercomputer.bicep<br/>Supercomputer + node pool]
-    ws[workspace.bicep<br/>Workspace + chat model<br/>+ storage container + project]
+    ws[workspace.bicep<br/>Workspace + chat model<br/>+ storage container]
+    prj[project.bicep<br/>Project]
   end
 
   net -- subnetIds --> stg
@@ -74,6 +76,7 @@ flowchart TD
   stg -- storageAccountName --> rbac
   stg -- resourceId --> ws
   sc -- supercomputerId --> ws
+  ws -- storageContainerId --> prj
 ```
 
 ## Module reference
@@ -87,7 +90,8 @@ Each module is self-contained: each takes explicit inputs and returns typed outp
 | `storage.bicep` | `storageAccountName`, `storageAccountSku`, `blobContainerName`, `allowedSubnetIds[]` | `resourceId`, `name`, `blobContainerName` |
 | `rbac.bicep` | `principalId`, `storageAccountName`, `assignStorageRole`, `discoveryContributorGroupObjectId` | *(none — creates role assignments)* |
 | `supercomputer.bicep` | `aksSubnetId`, `nodePoolSubnetId`, `managedIdentityResourceId`, `nodePoolVmSize`, node counts | `resourceId`, `nodePoolId` |
-| `workspace.bicep` | `managedIdentityResourceId`, `supercomputerId`, agent/PE/workspace subnet IDs, `storageAccountResourceId`, chat model + project names | `workspaceId`, `chatModelDeploymentId`, `storageContainerId`, `projectId` |
+| `workspace.bicep` | `managedIdentityResourceId`, `supercomputerId`, agent/PE/workspace subnet IDs, `storageAccountResourceId`, chat model name | `workspaceId`, `chatModelDeploymentId`, `storageContainerId` |
+| `project.bicep` | `workspaceName`, `projectName`, `storageContainerIds[]` | `projectId` |
 
 ## How the bring-your-own switches work
 

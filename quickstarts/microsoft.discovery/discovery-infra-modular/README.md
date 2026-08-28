@@ -103,11 +103,11 @@ Each module is self-contained: each takes explicit inputs and returns typed outp
 | Identity | `deployManagedIdentity = true` | `deployManagedIdentity = false` + `existingManagedIdentityResourceId` (principal ID is read automatically; `existingManagedIdentityPrincipalId` is an optional override) |
 | Storage | `deployStorage = true` | `deployStorage = false` + `existingStorageAccountResourceId` |
 
-The `Supercomputer` and `Workspace` modules always deploy — they are the Discovery-specific resources this sample exists to create.
+The `Supercomputer`, `Workspace`, and `Project` modules always deploy — they are the Discovery-specific resources this sample exists to create.
 
 ### Bring your own network
 
-A single parameters file — [main.byo-network.bicepparam](main.byo-network.bicepparam) — drives the whole bring-your-own-network deployment. You do **not** need to edit `main.bicep`, run multiple steps, or pre-run any wiring: pass the one param file to `az deployment group create` and the template deploys identity, storage, RBAC, the Supercomputer, and the Workspace against your existing subnets.
+A single parameters file — [main.byo-network.bicepparam](main.byo-network.bicepparam) — drives the whole bring-your-own-network deployment. You do **not** need to edit `main.bicep`, run multiple steps, or pre-run any wiring: pass the one param file to `az deployment group create` and the template deploys identity, storage, RBAC, the Supercomputer, Workspace, and Project against your existing subnets.
 
 It does, however, need to be **configured before its first use** — it is not deployable as shipped, because it contains placeholder values:
 
@@ -329,6 +329,14 @@ az deployment group create -g $RG -n ws --template-file modules/workspace.bicep 
   --parameters managedIdentityResourceId="$UAMI_ID" supercomputerId="$SC_ID" \
   --parameters agentSubnetId="$AGENT_SUBNET" privateEndpointSubnetId="$PE_SUBNET" \
   --parameters workspaceSubnetId="$WS_SUBNET" storageAccountResourceId="$STG_ID"
+WORKSPACE_ID=$(az deployment group show -g $RG -n ws --query properties.outputs.workspaceId.value -o tsv)
+STORAGE_CONTAINER_ID=$(az deployment group show -g $RG -n ws --query properties.outputs.storageContainerId.value -o tsv)
+WORKSPACE_NAME=${WORKSPACE_ID##*/}
+PROJECT_STORAGE=$(jq -cn --arg id "$STORAGE_CONTAINER_ID" '[$id]')
+
+# 7) Project — bind the Workspace to its Discovery storage container
+az deployment group create -g $RG -n project --template-file modules/project.bicep \
+  --parameters workspaceName="$WORKSPACE_NAME" storageContainerIds="$PROJECT_STORAGE"
 ```
 
 The same chaining in **PowerShell**, using `ConvertFrom-Json` instead of `jq`:
@@ -367,6 +375,14 @@ az deployment group create -g $RG -n ws --template-file modules/workspace.bicep 
   --parameters managedIdentityResourceId=$uamiId supercomputerId=$scId `
   --parameters agentSubnetId=$($subnets.agentSubnetId) privateEndpointSubnetId=$($subnets.privateEndpointSubnetId) `
   --parameters workspaceSubnetId=$($subnets.workspaceSubnetId) storageAccountResourceId=$stgId
+$workspaceId = az deployment group show -g $RG -n ws --query properties.outputs.workspaceId.value -o tsv
+$storageContainerId = az deployment group show -g $RG -n ws --query properties.outputs.storageContainerId.value -o tsv
+$workspaceName = ($workspaceId -split '/')[-1]
+$projectStorage = @($storageContainerId) | ConvertTo-Json -Compress
+
+# 7) Project
+az deployment group create -g $RG -n project --template-file modules/project.bicep `
+  --parameters workspaceName=$workspaceName storageContainerIds=$projectStorage
 ```
 
 ### Example 8 — Consume a module directly from your own Bicep
